@@ -19,7 +19,7 @@ class MigrationIT extends IntegrationTest {
     void historicoDoFlywayRegistraCadaVersao() {
         List<String> versions = jdbc.sql("select version from flyway_schema_history where success order by installed_rank")
                 .query(String.class).list();
-        assertThat(versions).containsExactly("1", "2", "3");
+        assertThat(versions).containsExactly("1", "2", "3", "4");
     }
 
     private void insert(String status, String start, String end) {
@@ -60,8 +60,9 @@ class MigrationIT extends IntegrationTest {
         assertThat(jdbc.sql("select count(*) from service where active").query(Long.class).single()).isEqualTo(21);
         assertThat(jdbc.sql("select note from category where id = 'trancas'").query(String.class).single())
                 .isEqualTo("Valores somente de mão de obra.");
-        assertThat(jdbc.sql("select note from category where id = 'unhas'").query(String.class).single())
-                .isEqualTo("Francesinha: valor à parte. Encapsular: + R$ 15,00.");
+        // V4 tirou o aviso de Francesinha/Encapsular, a pedido do salão
+        assertThat(jdbc.sql("select note from category where id = 'unhas'").query().singleRow())
+                .containsEntry("note", null);
 
         Map<String, Object> box = jdbc.sql("select * from service where id = 'box-braids'").query().singleRow();
         assertThat(box).containsEntry("price_cents", 19000).containsEntry("duration_min", 360)

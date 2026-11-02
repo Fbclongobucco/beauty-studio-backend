@@ -107,7 +107,10 @@ public abstract class IntegrationTest {
         clock.set(MONDAY_8AM);
         loginThrottle.clear();
         if (seedSql == null) {
+            // Catálogo inicial (V2) e os ajustes de dados posteriores sobre ele (V4: sem aviso em Unhas)
             seedSql = new ClassPathResource("db/migration/V2__catalogo_inicial.sql")
+                    .getContentAsString(StandardCharsets.UTF_8)
+                    + "\n" + new ClassPathResource("db/migration/V4__remove_aviso_unhas.sql")
                     .getContentAsString(StandardCharsets.UTF_8);
         }
         jdbc.sql("truncate appointment_status_history, appointment, outbox_event, account, service, category,"
