@@ -30,11 +30,14 @@ public class SessionCookies {
     }
 
     private ResponseCookie.ResponseCookieBuilder base(String value) {
-        return ResponseCookie.from(NAME, value)
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(NAME, value)
                 .httpOnly(true)
                 .secure(config.cookieSecure())
                 .sameSite(config.cookieSameSite())
                 .path("/");
+        // Com o front em outro subdomínio, o proxy.ts dele precisa ver o cookie para abrir o painel
+        String domain = config.cookieDomain();
+        return domain == null || domain.isBlank() ? b : b.domain(domain.strip());
     }
 
     public static String read(HttpServletRequest request) {

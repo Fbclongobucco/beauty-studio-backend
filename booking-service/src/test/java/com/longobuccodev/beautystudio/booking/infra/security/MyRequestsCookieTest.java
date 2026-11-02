@@ -25,7 +25,7 @@ class MyRequestsCookieTest {
     static final UUID B = UUID.randomUUID();
 
     static BookingProperties props() {
-        return new BookingProperties(new BookingProperties.Security(SECRET, true, "Lax"), null, null, null, null, null);
+        return new BookingProperties(new BookingProperties.Security(SECRET, true, "Lax", null), null, null, null, null, null);
     }
 
     static MyRequestsCookie cookie(Instant at) {

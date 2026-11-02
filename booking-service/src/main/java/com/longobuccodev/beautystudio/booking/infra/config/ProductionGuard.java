@@ -30,8 +30,44 @@ class ProductionGuard {
         }
         requireHttps("APP_PUBLIC_FRONT_URL", properties.publicUrls().frontUrl(), problems);
         requireHttps("APP_PUBLIC_MEDIA_URL", properties.publicUrls().mediaUrl(), problems);
+        checkCookieDomain(properties, problems);
         if (!problems.isEmpty()) {
             throw new IllegalStateException("Configuracao invalida para o perfil prod: " + String.join("; ", problems));
+        }
+    }
+
+    /**
+     * Front e API em hosts diferentes: o cookie de sessão precisa de APP_COOKIE_DOMAIN, comum aos dois hosts,
+     * senão o front nunca vê a sessão e manda sempre para o login.
+     */
+    private static void checkCookieDomain(BookingProperties properties, List<String> problems) {
+        String front = host(properties.publicUrls().frontUrl());
+        String api = host(properties.publicUrls().mediaUrl());
+        if (front == null || api == null || front.equals(api)) {
+            return;
+        }
+        String domain = properties.security().cookieDomain();
+        if (domain == null || domain.isBlank()) {
+            problems.add("APP_COOKIE_DOMAIN deve ser definido: front (" + front + ") e API (" + api
+                    + ") estão em hosts diferentes");
+            return;
+        }
+        String d = domain.strip().replaceFirst("^\\.", "").toLowerCase();
+        if (!coveredBy(front, d) || !coveredBy(api, d)) {
+            problems.add("APP_COOKIE_DOMAIN (" + d + ") deve cobrir " + front + " e " + api);
+        }
+    }
+
+    private static boolean coveredBy(String host, String domain) {
+        return host.equals(domain) || host.endsWith("." + domain);
+    }
+
+    private static String host(String url) {
+        try {
+            String h = URI.create(url == null ? "" : url.trim()).getHost();
+            return h == null ? null : h.toLowerCase();
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

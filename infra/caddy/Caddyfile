@@ -1,0 +1,16 @@
+# Proxy HTTPS da API (perfil prod). Certificado emitido e renovado sozinho pelo Caddy (Let's Encrypt),
+# assim que o DNS de {$API_DOMAIN} apontar para este servidor e as portas 80 e 443 estiverem abertas.
+{$API_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Fotos de até 5 MB passam pelo gateway; folga para o multipart
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy api-gateway:8080
+}

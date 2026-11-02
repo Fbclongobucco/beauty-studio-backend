@@ -49,6 +49,8 @@ beauty:
     jwt-secret: ${APP_JWT_SECRET:}
     cookie-secure: ${APP_COOKIE_SECURE:false}
     cookie-same-site: ${APP_COOKIE_SAME_SITE:Lax}
+    # Front e API em subdomínios diferentes (ex.: Vercel em salao.com.br, API em api.salao.com.br): salao.com.br
+    cookie-domain: ${APP_COOKIE_DOMAIN:}
   admin:
     username: ${ADMIN_USERNAME:master}
     password: ${ADMIN_PASSWORD:}

@@ -11,8 +11,12 @@ import java.time.Duration;
 public record BookingProperties(Security security, Admin admin, Public publicUrls, Storage storage, Login login,
                                 Outbox outbox) {
 
-    /** @param jwtSecret segredo HS256 da sessão, com pelo menos 32 caracteres */
-    public record Security(String jwtSecret, boolean cookieSecure, String cookieSameSite) {
+    /**
+     * @param jwtSecret    segredo HS256 da sessão, com pelo menos 32 caracteres
+     * @param cookieDomain domínio do cookie de sessão (ex.: {@code salao.com.br}) quando front e API estão em
+     *                     subdomínios diferentes, para o front também enxergar a sessão; vazio = só o host da API
+     */
+    public record Security(String jwtSecret, boolean cookieSecure, String cookieSameSite, String cookieDomain) {
     }
 
     /** Contas do ambiente: master e {@code ADMIN_USERS} ({@code id:senha;id:senha}). */

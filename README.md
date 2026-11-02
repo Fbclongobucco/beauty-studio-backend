@@ -101,7 +101,8 @@ curl http://localhost:8080/api/services
   - Postgres: `localhost:5432`
 - Senha do master: `ADMIN_PASSWORD` em `.env.local`.
 
-**Prod (servidor):**
+**Prod (servidor):** passo a passo completo, com Vercel, DNS e HTTPS, em [DEPLOY.md](DEPLOY.md).
+
 
 ```bash
 ./stack.sh prod ps               # 1ª vez: cria .env.prod com segredos gerados e para
@@ -121,7 +122,7 @@ Diferenças em relação ao local:
   - envio real de WhatsApp ligado por padrão;
   - nenhuma porta de gestão publicada; só a Evolution, em `127.0.0.1:${EVOLUTION_LOCAL_PORT}`, para ler o QR Code por túnel SSH (`ssh -L 8081:127.0.0.1:8081 servidor`);
   - rotação de log (10 MB × 5 arquivos por contêiner).
-- Não testado em servidor real: HTTPS e proxy reverso não fazem parte deste repositório. Atrás de um proxy reverso, use `LOGIN_TRUSTED_PROXY_HOPS=2`.
+- HTTPS pelo Caddy (`infra/caddy/Caddyfile`), única entrada pública; o gateway fica só na rede interna. Testado nesta máquina com `API_DOMAIN=localhost` (certificado local); ainda não testado em servidor real.
 
 Front-end apontando para o backend:
 
@@ -285,7 +286,9 @@ notification-service/   core / application / infra + migration Flyway
 infra/postgres/init/    cria os bancos e usuários na primeira subida
 compose.yaml            base comum (só o gateway publica porta)
 compose.local.yaml      perfil local: portas de gestão, perfil Spring local, sandbox do WhatsApp (perfil whatsapp-sandbox)
-compose.prod.yaml       perfil prod: variáveis obrigatórias, rotação de log, perfil Spring prod
+compose.prod.yaml       perfil prod: Caddy (HTTPS), variáveis obrigatórias, rotação de log, perfil Spring prod
+infra/caddy/Caddyfile   proxy HTTPS da API em produção
+DEPLOY.md               roteiro de subida no servidor (VPS + Vercel)
 stack.sh                atalho: ./stack.sh local|prod <comando do compose>
 whatsapp.sh             modos de envio do WhatsApp no perfil local (log, sandbox, real) e conexão do número
 infra/whatsapp-sandbox  sandbox que imita o envio da Evolution API
