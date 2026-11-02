@@ -6,6 +6,8 @@
 # Postgres 43 MiB, MinIO 31 MiB (total ~475 MiB). Trocar o GC (SerialGC) ou reduzir o heap nao mudou o consumo:
 # ele vem da parte da JVM fora do heap. Medir de novo no servidor real.
 # Front: na Vercel (ver DEPLOY.md). Este arquivo e independente do compose.yaml.
+# HTTPS e roteamento: pelo Nginx que ja existe no servidor (infra/nginx/beauty-studio-api.conf), que chega ao booking e
+# ao MinIO pelas portas em 127.0.0.1 abaixo. Servidor sem Nginx: ./stack.sh lite --profile caddy up -d (Caddy proprio).
 name: beauty-lite
 
 x-logging: &logging
@@ -44,6 +46,9 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env.lite}
     volumes:
       - minio-data:/data
+    # So na propria maquina: o Nginx do servidor serve as fotos em /media
+    ports:
+      - '127.0.0.1:${MINIO_LOCAL_PORT:-19000}:9000'
     healthcheck:
       test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /minio/health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && read -r status <&3 && [[ $$status == *" 200 "* ]]']
       interval: 10s
@@ -87,8 +92,11 @@ services:
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:?defina APP_CORS_ALLOWED_ORIGINS no .env.lite}
       APP_PUBLIC_FRONT_URL: ${APP_PUBLIC_FRONT_URL:?defina APP_PUBLIC_FRONT_URL no .env.lite}
       APP_PUBLIC_MEDIA_URL: ${APP_PUBLIC_MEDIA_URL:?defina APP_PUBLIC_MEDIA_URL no .env.lite}
-      # So o Caddy na frente do booking
+      # So um proxy (Nginx ou Caddy) na frente do booking
       LOGIN_TRUSTED_PROXY_HOPS: '1'
+    # So na propria maquina: o Nginx do servidor encaminha /api para ca
+    ports:
+      - '127.0.0.1:${BOOKING_LOCAL_PORT:-18080}:8080'
     healthcheck:
       test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/actuator/health | grep -q UP']
       interval: 10s
@@ -98,9 +106,11 @@ services:
     mem_limit: 512m
     restart: unless-stopped
 
+  # Opcional, para servidor sem Nginx: so sobe com --profile caddy
   caddy:
     <<: *logging
     image: caddy:2.11.7-alpine
+    profiles: ['caddy']
     depends_on:
       booking-service:
         condition: service_healthy

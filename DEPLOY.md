@@ -4,7 +4,7 @@
 quem	onde	endereço (exemplo)
 front (Next.js)	Vercel	https://salao.com.br
 API (booking-service, Postgres, MinIO)	VPS Linux com Docker	https://api.salao.com.br
-HTTPS da API	Caddy, na mesma VPS (certificado automático)	portas 80 e 443
+HTTPS da API	Caddy (certificado automático) ou o Nginx que já existir no servidor (certbot)	portas 80 e 443
 ```
 
 Os dois endereços precisam estar **no mesmo domínio** (`salao.com.br` e `api.salao.com.br`). A sessão do painel e o acompanhamento do pedido dependem disso. O endereço `*.vercel.app` não serve.
@@ -57,7 +57,7 @@ Os passos abaixo são do **lite**, o perfil do servidor atual de 1 GB.
 
 - Linux com Docker Engine e o plugin Docker Compose.
 - Firewall: abertas só as portas 22 (SSH), 80 e 443.
-- Swap de 1 GB como reserva, para picos não derrubarem o booking:
+- Swap de 1 GB como reserva, para picos e para compilar a imagem no próprio servidor (`./stack.sh lite up -d --build`) sem derrubar o booking:
   ```bash
   sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile
   sudo mkswap /swapfile && sudo swapon /swapfile
@@ -116,6 +116,29 @@ curl https://api.salao.com.br/api/services
 
 O booking-service se recusa a subir com configuração de desenvolvimento e diz no log o que falta. Exemplos: URL sem `https`, ou `APP_COOKIE_DOMAIN` ausente com front e API em hosts diferentes (`./stack.sh lite logs booking-service`).
 
+## Servidor que já tem Nginx
+
+Se o servidor já usa o Nginx nas portas 80 e 443 (outro site, por exemplo), o Caddy não sobe: o `compose.lite.yaml` só inicia o Caddy com `--profile caddy`. Nesse caso, o Nginx existente faz o HTTPS e o roteamento. O booking e o MinIO ficam acessíveis só na própria máquina (`127.0.0.1:18080` e `127.0.0.1:19000`).
+
+1. Confira se o DNS do servidor funciona. O `certbot` precisa dele:
+   ```bash
+   getent hosts acme-v02.api.letsencrypt.org || echo "DNS do servidor com problema"
+   ```
+2. Instale o site da API (troque o domínio, se não for o provisório):
+   ```bash
+   sudo cp infra/nginx/beauty-studio-api.conf /etc/nginx/sites-available/beauty-studio-api
+   sudo sed -i 's/API_DOMAIN/91-252-193-21.sslip.io/' /etc/nginx/sites-available/beauty-studio-api
+   sudo ln -s /etc/nginx/sites-available/beauty-studio-api /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   O site novo só responde para esse nome (`server_name`); os outros sites do Nginx não mudam.
+3. Certificado HTTPS com o certbot (ele edita o site, adiciona o 443 e o redirecionamento):
+   ```bash
+   sudo apt install -y certbot python3-certbot-nginx
+   sudo certbot --nginx -d 91-252-193-21.sslip.io --redirect
+   ```
+4. Suba sem o Caddy: `./stack.sh lite up -d`. Se o Caddy já tinha sido criado, remova: `./stack.sh lite --profile caddy rm -sf caddy`.
+
 ## 6. Front na Vercel
 
 1. Importe o repositório `beauty-studio-front` na Vercel (framework: Next.js; comandos padrão).
@@ -133,6 +156,7 @@ Com `NEXT_PUBLIC_API_BASE_URL` definido, a API de teste em memória do front (`/
 - No navegador, o cookie `admin_session` deve aparecer com `Domain=salao.com.br`, `Secure` e `HttpOnly`.
 - `http://api.salao.com.br` redireciona para `https://`.
 - `docker stats --no-stream` para conferir a memória.
+- Com o Nginx: `sudo certbot renew --dry-run` para confirmar que a renovação automática do certificado funciona.
 
 ## 8. Operação
 
