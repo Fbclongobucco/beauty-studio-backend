@@ -9,6 +9,35 @@ HTTPS da API	Caddy, na mesma VPS (certificado automático)	portas 80 e 443
 
 Os dois endereços precisam estar **no mesmo domínio** (`salao.com.br` e `api.salao.com.br`). A sessão do painel e o acompanhamento do pedido dependem disso. O endereço `*.vercel.app` não serve.
 
+## Provisório: sem domínio próprio
+
+Enquanto o salão não tem domínio, o front fica no endereço da Vercel (ex.: `https://beauty-studio.vercel.app`). A Vercel repassa `/api` e `/media` para a VPS, e tudo fica no mesmo endereço, então o login do painel e o acompanhamento do pedido funcionam. A VPS ganha HTTPS por um nome gratuito baseado no IP, do serviço [sslip.io](https://sslip.io): o IP `203.0.113.10` vira `203-0-113-10.sslip.io`.
+
+Diferenças em relação ao desenho com domínio:
+- **DNS:** pule o passo 2; o nome `*.sslip.io` já resolve para o IP.
+- **`.env.lite`:** preencha assim (troque pelo seu IP e pelo seu endereço da Vercel):
+  ```
+  API_DOMAIN=203-0-113-10.sslip.io
+  APP_COOKIE_DOMAIN=
+  APP_CORS_ALLOWED_ORIGINS=https://beauty-studio.vercel.app
+  APP_PUBLIC_FRONT_URL=https://beauty-studio.vercel.app
+  APP_PUBLIC_MEDIA_URL=https://beauty-studio.vercel.app
+  ```
+  `APP_COOKIE_DOMAIN` fica vazio, e `APP_PUBLIC_MEDIA_URL` aponta para a Vercel, para as fotos também passarem por ela. `APP_CORS_ALLOWED_ORIGINS` precisa do endereço da Vercel: ela repassa o cabeçalho `Origin` do navegador.
+- **Variáveis na Vercel** (Settings → Environment Variables), no lugar de `NEXT_PUBLIC_API_BASE_URL`:
+  ```
+  API_PROXY_URL=https://203-0-113-10.sslip.io
+  NEXT_PUBLIC_API_BASE_URL=   (vazio ou ausente)
+  ```
+  Faça um novo deploy depois de mudar.
+
+Limitações:
+- **Banda:** toda a API e as fotos passam pela Vercel e contam na banda do plano dela.
+- **Limite de login:** o limite de tentativas por origem passa a contar pelo IP da Vercel, e não pelo IP da cliente. O limite por usuário continua valendo.
+- **Certificado:** a emissão para um nome `*.sslip.io` depende do Let's Encrypt aceitar o nome. Se falhar, o motivo aparece em `./stack.sh lite logs caddy`.
+
+Quando tiver domínio, siga as seções abaixo, tire `API_PROXY_URL` da Vercel e reconfigure o `.env.lite` com os endereços do domínio. Os dados no banco continuam.
+
 ## Qual perfil usar
 
 ```
