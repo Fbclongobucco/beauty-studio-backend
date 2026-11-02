@@ -7,6 +7,7 @@ import com.longobuccodev.beautystudio.booking.application.usecase.AdminAppointme
 import com.longobuccodev.beautystudio.booking.application.usecase.AuthUseCase;
 import com.longobuccodev.beautystudio.booking.application.usecase.AvailabilityUseCase;
 import com.longobuccodev.beautystudio.booking.application.usecase.BookingUseCase;
+import com.longobuccodev.beautystudio.booking.application.usecase.TrackedRequestsUseCase;
 import com.longobuccodev.beautystudio.booking.application.usecase.CatalogUseCase;
 import com.longobuccodev.beautystudio.booking.application.usecase.EarningsUseCase;
 import com.longobuccodev.beautystudio.booking.application.usecase.ProfessionalUseCase;
@@ -52,6 +53,11 @@ public class UseCaseConfig {
     AvailabilityUseCase availabilityUseCase(ServiceRepository services, AppointmentRepository appointments,
                                             Clock clock) {
         return new AvailabilityUseCase(services, appointments, clock);
+    }
+
+    @Bean
+    TrackedRequestsUseCase trackedRequestsUseCase(AppointmentRepository appointments, Clock clock) {
+        return new TrackedRequestsUseCase(appointments, clock);
     }
 
     @Bean

@@ -45,8 +45,8 @@ public class AvailabilityUseCase {
             throw new DomainValidationException(fields);
         }
         SalonService svc = activeService(serviceId);
-        return new AvailabilityResponse(serviceId, date,
-                Availability.availableSlots(svc.durationMin(), d.get(), busy(svc, d.get()), clock));
+        Availability.DaySlots day = Availability.daySlots(svc.durationMin(), d.get(), busy(svc, d.get()), clock);
+        return new AvailabilityResponse(serviceId, date, day.free(), day.taken());
     }
 
     public DaysResponse days(String serviceId, String from, String days) {

@@ -29,3 +29,24 @@ services:
     environment: *local-java
   notification-service:
     environment: *local-java
+
+  # Sandbox do WhatsApp: imita o envio da Evolution API e mostra as mensagens em http://localhost:8099.
+  # Só sobe com o perfil whatsapp-sandbox (./whatsapp.sh sandbox).
+  whatsapp-sandbox:
+    image: python:3.13.18-alpine3.24
+    profiles: ['whatsapp-sandbox']
+    command: ['python', '/app/server.py']
+    environment:
+      SANDBOX_API_KEY: ${EVOLUTION_API_KEY}
+      SANDBOX_INSTANCE: ${EVOLUTION_INSTANCE:-beauty-studio}
+    volumes:
+      - ./infra/whatsapp-sandbox/server.py:/app/server.py:ro
+    ports:
+      - '127.0.0.1:8099:8080'
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/health")']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 64m
+    restart: unless-stopped

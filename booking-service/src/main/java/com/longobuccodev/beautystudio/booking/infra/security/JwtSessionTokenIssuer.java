@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
@@ -23,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,6 +34,8 @@ public class JwtSessionTokenIssuer implements SessionTokenIssuer {
 
     static final String ISSUER = "beauty-studio-booking";
     static final String PASSWORD_VERSION = "pv";
+    /** Audiência própria: o token do cookie my_requests (mesmo segredo) não vale como sessão, e vice-versa. */
+    static final String AUDIENCE = "admin-session";
 
     private final NimbusJwtEncoder encoder;
     private final NimbusJwtDecoder decoder;
@@ -47,7 +51,8 @@ public class JwtSessionTokenIssuer implements SessionTokenIssuer {
         this.decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
         JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ZERO);
         timestamps.setClock(clock);
-        this.decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(timestamps, new JwtIssuerValidator(ISSUER)));
+        this.decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(timestamps, new JwtIssuerValidator(ISSUER),
+                new JwtClaimValidator<List<String>>("aud", aud -> aud != null && aud.contains(AUDIENCE))));
         this.clock = clock;
     }
 
@@ -56,6 +61,7 @@ public class JwtSessionTokenIssuer implements SessionTokenIssuer {
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
+                .audience(List.of(AUDIENCE))
                 .subject(account.id().toString())
                 .issuedAt(now)
                 .expiresAt(now.plus(SESSION_TTL))

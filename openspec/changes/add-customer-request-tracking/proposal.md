@@ -2,7 +2,7 @@
 
 Hoje a cliente acompanha o pedido só pelo link da tela de pedido enviado ou pelo link que chega nas mensagens de WhatsApp. Se ela fechar a aba e não tiver a mensagem à mão, não há como achar o pedido de novo pelo site.
 
-O front vai mostrar no topo da página inicial um cartão "Seu pedido" com o status (mudança `add-customer-request-tracking` no repositório `beauty-studio`). Para isso, a API precisa lembrar, no próprio aparelho, quais pedidos foram feitos ou abertos ali.
+Ao voltar à página inicial, o front vai levar a cliente direto à tela do pedido em andamento, com o status (mudança `add-customer-request-tracking` no repositório `beauty-studio`). Para isso, a API precisa lembrar, no próprio aparelho, quais pedidos foram feitos ou abertos ali.
 
 ## What Changes
 
@@ -15,7 +15,6 @@ O front vai mostrar no topo da página inicial um cartão "Seu pedido" com o sta
   - confirmados que ainda não terminaram;
   - recusados ou cancelados com início ainda no futuro.
   - Sem cookie, a lista vem vazia.
-- **Novo `DELETE /api/appointments/mine/{id}`:** tira um pedido do cookie, para o caso "não é meu pedido" em aparelho compartilhado.
 - Os endpoints atuais não mudam; só ganham o `Set-Cookie`.
 
 ## Capabilities

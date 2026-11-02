@@ -3,7 +3,7 @@
 # Imagens construidas na propria maquina (tag "prod"), sem registry.
 # Diferencas para o local:
 #   - perfil Spring "prod": cookie Secure obrigatorio, URLs publicas em https, saude sem detalhes, sem painel do Eureka;
-#   - envio real de WhatsApp ligado por padrao;
+#   - envio real de WhatsApp suspenso (desligado por padrao; ver README);
 #   - nenhuma porta de gestao publicada; so a Evolution em 127.0.0.1 (acesso por tunel SSH para ler o QR Code);
 #   - rotacao de log dos conteineres;
 #   - URLs publicas e CORS obrigatorios no .env.prod.
@@ -52,5 +52,5 @@ services:
     <<: *logging
     environment:
       <<: *prod-java
-      NOTIFICATION_SEND_ENABLED: ${NOTIFICATION_SEND_ENABLED:-true}
+      NOTIFICATION_SEND_ENABLED: ${NOTIFICATION_SEND_ENABLED:-false}
       APP_PUBLIC_FRONT_URL: ${APP_PUBLIC_FRONT_URL:?defina APP_PUBLIC_FRONT_URL no .env.prod}

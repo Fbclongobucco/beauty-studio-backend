@@ -31,12 +31,9 @@ O navegador só envia `my_requests` às rotas de pedido público. O cookie não 
 ### D4. Gravação no GET do pedido
 Abrir o link do pedido grava o cookie. É efeito colateral em um GET, mas idempotente e restrito ao navegador de quem abriu. É o que faz o link do WhatsApp "ensinar" o celular da cliente.
 
-### D5. Sem CSRF novo
-`DELETE /mine/{id}` só mexe no cookie do próprio navegador. Com `SameSite=Lax`, um site de terceiros não consegue enviar o cookie nesse método.
-
 ## Risks / Trade-offs
 
-- **Aparelho compartilhado:** outra pessoa no mesmo aparelho vê o primeiro nome, o serviço e o horário. Mitigações: o botão "Não é meu pedido", os mesmos dados que o link já mostra, e nenhum telefone.
+- **Aparelho compartilhado:** outra pessoa no mesmo aparelho vê o primeiro nome, o serviço e o horário, os mesmos dados que o link já mostra, e nenhum telefone. O botão "Não é meu pedido" foi retirado a pedido do salão.
 - **Troca do `APP_JWT_SECRET`:** invalida os cookies, que passam a contar como vazios. A cliente perde só o atalho; o link continua funcionando.
 - **Sessões do painel no deploy:** ao passar a exigir audiência no `admin_session` (tarefa 1.2), as sessões abertas antes do deploy deixam de valer, e as contas fazem login de novo uma vez.
 - **Front e API em sites diferentes:** o cookie não seria enviado. A exigência é a mesma do painel e já está documentada.

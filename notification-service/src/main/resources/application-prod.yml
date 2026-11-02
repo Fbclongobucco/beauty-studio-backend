@@ -15,7 +15,7 @@ logging:
     root: INFO
     com.longobuccodev.beautystudio: INFO
 
-# Producao envia pela Evolution API por padrao
+# Envio de WhatsApp suspenso: desligado por padrao tambem em producao
 beauty:
   notification:
-    send-enabled: ${NOTIFICATION_SEND_ENABLED:true}
+    send-enabled: ${NOTIFICATION_SEND_ENABLED:false}

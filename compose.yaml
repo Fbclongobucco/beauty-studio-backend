@@ -77,6 +77,7 @@ services:
     restart: unless-stopped
 
   # Variaveis conferidas no .env.example oficial da v2.3.7. Cache local, sem Redis.
+  # Envio de WhatsApp suspenso (ver README). A tentativa de correcao do pareamento fica em infra/evolution, fora de uso.
   evolution-api:
     image: evoapicloud/evolution-api:v2.3.7
     depends_on:
@@ -211,7 +212,8 @@ services:
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-beauty}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       NOTIFICATION_SEND_ENABLED: ${NOTIFICATION_SEND_ENABLED:-false}
-      EVOLUTION_API_URL: http://evolution-api:8080
+      # Padrão: Evolution API real. ./whatsapp.sh sandbox aponta para o sandbox (só no perfil local)
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://evolution-api:8080}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-beauty-studio}
       SALON_WHATSAPP: ${SALON_WHATSAPP:-}

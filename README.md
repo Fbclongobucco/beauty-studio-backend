@@ -153,14 +153,29 @@ Todas estão em `.env.local.example` e `.env.prod.example`, com comentários. Os
 - **`APP_COOKIE_SECURE`, `APP_COOKIE_SAME_SITE`**: no perfil prod, `Secure` é sempre ligado; `SameSite` padrão `Lax`.
 - **`LOGIN_TRUSTED_PROXY_HOPS`**: padrão `1`, só o gateway. Use `2` se houver um proxy reverso (HTTPS) na frente do gateway. Define qual entrada do `X-Forwarded-For` vale como origem no limite de tentativas de login.
 
+## Acompanhamento do pedido
+
+A cliente acompanha o pedido sem login, no mesmo aparelho:
+
+- **Cookie `my_requests`:** gravado pela API ao criar o pedido (`POST /api/appointments`) e ao abrir o link do pedido (`GET /api/appointments/{id}`), inclusive o link do WhatsApp aberto em outro aparelho.
+  - `HttpOnly`, caminho `/api/appointments`, validade de 60 dias renovada a cada gravação; `Secure` e `SameSite` iguais aos do cookie do painel.
+  - Guarda só os ids de até 10 pedidos, num token assinado com `APP_JWT_SECRET` (audiência própria, que não vale como sessão do painel). Nenhum dado da cliente.
+  - Valor adulterado, expirado ou inválido conta como vazio.
+- **`GET /api/appointments/mine`:** pedidos do cookie em andamento, do início mais próximo para o mais distante, no formato público de `GET /api/appointments/{id}`: pendentes, confirmados que ainda não terminaram, e recusados ou cancelados com horário ainda no futuro. Sem cookie, `{ "appointments": [] }`.
+- Como no painel, o navegador só envia o cookie com front e API no mesmo site.
+- Trocar o `APP_JWT_SECRET` invalida esses cookies e as sessões do painel.
+
 ## WhatsApp
 
-### Conectar o número do salão na Evolution API
+### Situação: envio suspenso
 
-1. Abra http://localhost:8081/manager (local) ou, no servidor, pelo túnel SSH na `EVOLUTION_LOCAL_PORT`.
-2. Entre com a `EVOLUTION_API_KEY` e crie uma instância com o nome de `EVOLUTION_INSTANCE` (padrão `beauty-studio`).
-3. Leia o QR Code com o WhatsApp do número do salão: Aparelhos conectados, depois Conectar aparelho.
-4. No local, coloque `NOTIFICATION_SEND_ENABLED=true` em `.env.local` e rode `./stack.sh local up -d notification-service`. No prod, o envio já vem ligado.
+O envio real de WhatsApp está **desligado** (`NOTIFICATION_SEND_ENABLED=false` nos dois perfis). Os avisos continuam sendo gerados e registrados no log do notification-service e na tabela `notification`, mas nada é enviado.
+
+Motivo: a Evolution API v2.3.7 não consegue parear aparelho novo desde uma mudança do WhatsApp em 07/2026 (defeito aberto, sem correção oficial; [issue #2696](https://github.com/evolution-foundation/evolution-api/issues/2696), [PR #2727](https://github.com/evolution-foundation/evolution-api/pull/2727)). Uma adaptação dessa correção está em `infra/evolution/`, **fora de uso** e não validada (o pareamento não concluiu no teste).
+
+Para retomar:
+- `./whatsapp.sh status | conectar | reiniciar | real | log` no perfil local;
+- `./whatsapp.sh sandbox` mostra as mensagens que seriam enviadas em http://localhost:8099, sem enviar nada, e permite simular falhas (`POST localhost:8099/mode` com `{"mode": "invalid-number" | "down" | "ok"}`).
 
 ### Números das profissionais e das clientes
 
@@ -247,20 +262,16 @@ O front atual funciona sem mudar, mas precisa de ajuste para aproveitar estas ex
   - `PATCH /api/admin/professionals/{id}` (nome e ativo, só master) é novo.
 - **Contas:** em `GET /api/admin/accounts`, `login` ganha o valor `"db"`. Logins criados pelo painel agora persistem e não somem ao reiniciar.
 - **Erros novos:** `TOO_MANY_ATTEMPTS` (429, limite de tentativas de login) e `SERVICE_UNAVAILABLE` (503, gateway ou MinIO). O front já mostra a `message` do corpo.
+- **Horários ocupados:** `GET /api/availability` traz também `taken`, os horários da grade do dia ocupados por agendamento confirmado da profissional, para o front mostrar em cinza. Não informa quem ocupa.
 - **Foto do serviço:** segue o contrato da mudança `add-service-photo` do front: `photoUrl`, `PUT` e `DELETE /api/admin/services/{id}/photo`, campo `photo`, 5 MB. A `photoUrl` é absoluta, servida pelo gateway em `/media/...`.
 
-### Ajustes pendentes no front (fora deste repositório)
+### Ajustes no front
 
-1. Tipos:
-   - `AdminAccount.login` passa a aceitar `"db"`;
-   - `AdminSession` e `Professional` ganham `whatsappPhone`;
-   - `ApiErrorCode` ganha `TOO_MANY_ATTEMPTS` e `SERVICE_UNAVAILABLE`.
-2. Tela de contas: trocar o aviso "some ao reiniciar" quando `login` for `"db"`.
-3. Painel da profissional:
-   - campo "Meu WhatsApp", usando `PATCH /api/admin/me`;
-   - aviso enquanto o número estiver vazio.
-4. Tela de agendamento: avisar que as atualizações do pedido chegam no WhatsApp informado.
-5. Produção: front e API sob o mesmo site, por exemplo com o proxy reverso encaminhando `/api` e `/media` para o gateway. Assim o `proxy.ts` do front enxerga o cookie `admin_session`, que é emitido pela API sem atributo `Domain`.
+Feitos no repositório `beauty-studio-front`, na mudança `adapt-front-to-backend`:
+- tipos com `whatsappPhone`, login `"db"` e os erros `TOO_MANY_ATTEMPTS` e `SERVICE_UNAVAILABLE`;
+- bloco "Meu WhatsApp" da profissional e aviso enquanto o número estiver vazio;
+- número só para leitura na tela do master;
+- aviso no agendamento de que as atualizações do pedido chegam no WhatsApp informado.
 
 ## Estrutura
 
@@ -273,9 +284,11 @@ booking-service/        core / application / infra + migrations Flyway (db/migra
 notification-service/   core / application / infra + migration Flyway
 infra/postgres/init/    cria os bancos e usuários na primeira subida
 compose.yaml            base comum (só o gateway publica porta)
-compose.local.yaml      perfil local: portas de gestão, perfil Spring local
+compose.local.yaml      perfil local: portas de gestão, perfil Spring local, sandbox do WhatsApp (perfil whatsapp-sandbox)
 compose.prod.yaml       perfil prod: variáveis obrigatórias, rotação de log, perfil Spring prod
 stack.sh                atalho: ./stack.sh local|prod <comando do compose>
+whatsapp.sh             modos de envio do WhatsApp no perfil local (log, sandbox, real) e conexão do número
+infra/whatsapp-sandbox  sandbox que imita o envio da Evolution API
 .env.*.example          variáveis de cada perfil
 openspec/               especificações e plano das mudanças
 ```

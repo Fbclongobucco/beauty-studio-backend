@@ -53,10 +53,3 @@ A ordem SHALL ser pelo início, do mais próximo para o mais distante. Sem cooki
 #### Scenario: Sem cookie
 - **WHEN** um aparelho que nunca fez pedido chama `GET /api/appointments/mine`
 - **THEN** a resposta é 200 com `{ "appointments": [] }`
-
-### Requirement: Esquecer um pedido no aparelho
-`DELETE /api/appointments/mine/{id}` SHALL retirar o id do cookie e responder 200 com a lista atualizada, no formato de `GET /api/appointments/mine`. Id ausente do cookie MUST responder 200 sem mudar nada. A operação MUST NOT alterar o pedido em si.
-
-#### Scenario: Não é meu pedido
-- **WHEN** a cliente toca em "Não é meu pedido" no cartão de um pedido
-- **THEN** o id sai do cookie, o pedido continua com o mesmo status no painel e não aparece mais no cartão desse aparelho

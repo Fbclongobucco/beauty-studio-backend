@@ -101,4 +101,49 @@ class ScheduleAndAvailabilityTest {
         assertThat(days).contains(new Availability.DayInfo(FRI, true, false));
         assertThat(days).contains(new Availability.DayInfo(LocalDate.parse("2026-11-05"), true, true));
     }
+
+    // ---- show-taken-slots: horários ocupados ----
+
+    static Availability.DaySlots day(int duration, String date, List<Availability.Busy> busy, Clock clock) {
+        return Availability.daySlots(duration, LocalDate.parse(date), busy, clock);
+    }
+
+    @Test
+    void confirmadoApareceComoOcupado() {
+        List<Availability.Busy> busy = List.of(new Availability.Busy(FRI, LocalTime.of(11, 0), 30));
+        Availability.DaySlots d = day(30, "2026-11-06", busy, SUNDAY_8AM);
+        assertThat(d.taken()).containsExactly("11:00");
+        assertThat(d.free()).doesNotContain("11:00").contains("10:30", "11:30");
+    }
+
+    @Test
+    void servicoMaisLongoOcupaOInicioAnterior() {
+        List<Availability.Busy> busy = List.of(new Availability.Busy(FRI, LocalTime.of(11, 0), 30));
+        assertThat(day(60, "2026-11-06", busy, SUNDAY_8AM).taken()).containsExactly("10:30", "11:00");
+    }
+
+    @Test
+    void semConfirmadoNadaOcupadoELivresIguaisAAvailableSlots() {
+        Availability.DaySlots d = day(30, "2026-11-06", List.of(), SUNDAY_8AM);
+        assertThat(d.taken()).isEmpty();
+        assertThat(d.free()).isEqualTo(slots(30, "2026-11-06", List.of(), SUNDAY_8AM));
+    }
+
+    @Test
+    void horarioQueJaPassouFicaForaDasDuasListas() {
+        // Sexta 06/11, 14:10 em São Paulo (17:10 UTC), confirmado às 10:00
+        Clock fri1410 = Clock.fixed(Instant.parse("2026-11-06T17:10:00Z"), ZoneOffset.UTC);
+        List<Availability.Busy> busy = List.of(new Availability.Busy(FRI, LocalTime.of(10, 0), 30));
+        Availability.DaySlots d = day(30, "2026-11-06", busy, fri1410);
+        assertThat(d.taken()).doesNotContain("10:00").isEmpty();
+        assertThat(d.free()).doesNotContain("10:00").startsWith("14:30");
+    }
+
+    @Test
+    void diaFechadoSemLivresNemOcupados() {
+        List<Availability.Busy> busy = List.of(new Availability.Busy(LocalDate.parse("2026-11-08"), LocalTime.of(10, 0), 30));
+        Availability.DaySlots d = day(30, "2026-11-08", busy, SUNDAY_8AM);
+        assertThat(d.free()).isEmpty();
+        assertThat(d.taken()).isEmpty();
+    }
 }

@@ -66,7 +66,8 @@ class PublicApiIT extends IntegrationTest {
     @Test
     void disponibilidadeRespeitaGradeDuracaoEConfirmados() throws Exception {
         JsonNode nago = getJson("/api/availability?serviceId=nago-7-12&date=2026-11-03");
-        assertThat(keys(nago)).containsExactly("serviceId", "date", "slots");
+        assertThat(keys(nago)).containsExactly("serviceId", "date", "slots", "taken");
+        assertThat(nago.get("taken").size()).isZero();
         assertThat(nago.get("slots").get(nago.get("slots").size() - 1).asString()).isEqualTo("18:00");
 
         String id = book("manicure-pedicure", "2026-11-06", "10:00");
@@ -76,13 +77,20 @@ class PublicApiIT extends IntegrationTest {
         List<String> slots = new ArrayList<>();
         manicure.get("slots").forEach(s -> slots.add(s.asString()));
         assertThat(slots).doesNotContain("10:00", "10:30").contains("09:30", "11:00");
+        // show-taken-slots: o horário ocupado vem em "taken", sem dizer quem ocupa
+        List<String> taken = new ArrayList<>();
+        manicure.get("taken").forEach(s -> taken.add(s.asString()));
+        assertThat(taken).containsExactly("10:00", "10:30");
+        assertThat(manicure.toString()).doesNotContain("customer", "Stéfani");
         assertThat(getJson("/api/availability?serviceId=depilacao&date=2026-11-06").toString()).contains("\"10:00\"");
     }
 
     @Test
     void pendenteNaoBloqueia() throws Exception {
         book("manicure", "2026-11-06", "11:00");
-        assertThat(getJson("/api/availability?serviceId=manicure&date=2026-11-06").toString()).contains("\"11:00\"");
+        JsonNode manicure = getJson("/api/availability?serviceId=manicure&date=2026-11-06");
+        assertThat(manicure.get("slots").toString()).contains("\"11:00\"");
+        assertThat(manicure.get("taken").size()).isZero();
     }
 
     @Test

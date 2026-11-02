@@ -50,7 +50,8 @@ public final class Dtos {
 
     // ---- Disponibilidade ----
 
-    public record AvailabilityResponse(String serviceId, String date, List<String> slots) {
+    /** {@code taken}: horários da grade ocupados por confirmado (o front mostra em cinza). */
+    public record AvailabilityResponse(String serviceId, String date, List<String> slots, List<String> taken) {
     }
 
     public record DayDto(String date, boolean open, boolean hasSlots) {

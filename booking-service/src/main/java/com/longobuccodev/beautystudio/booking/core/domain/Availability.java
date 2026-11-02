@@ -22,11 +22,18 @@ public final class Availability {
     private Availability() {
     }
 
-    /** Horários de início livres (HH:mm). {@code busy} deve conter só confirmados da profissional. */
-    public static List<String> availableSlots(int durationMin, LocalDate date, List<Busy> busy, Clock clock) {
+    /** Horários do dia: livres e ocupados por confirmado, ambos em HH:mm e em ordem crescente. */
+    public record DaySlots(List<String> free, List<String> taken) {
+    }
+
+    /**
+     * Grade do dia, já sem horários passados, separada em livres e ocupados. {@code busy} deve conter só
+     * confirmados da profissional. Dia fechado ou fora da janela: as duas listas vazias.
+     */
+    public static DaySlots daySlots(int durationMin, LocalDate date, List<Busy> busy, Clock clock) {
         Schedule.SalonNow now = Schedule.now(clock);
         if (!Schedule.isWorkDay(date) || !Schedule.isInWindow(date, now.date())) {
-            return List.of();
+            return new DaySlots(List.of(), List.of());
         }
         List<int[]> sameDay = busy.stream()
                 .filter(b -> b.date().equals(date))
@@ -36,17 +43,26 @@ public final class Availability {
                 })
                 .toList();
         boolean today = date.equals(now.date());
-        List<String> out = new ArrayList<>();
+        List<String> free = new ArrayList<>();
+        List<String> taken = new ArrayList<>();
         for (int start : Schedule.gridStarts(durationMin)) {
             if (today && start <= now.minutes()) {
                 continue;
             }
             int end = start + durationMin;
+            String time = Schedule.formatTime(Schedule.fromMinutes(start));
             if (sameDay.stream().noneMatch(b -> Schedule.overlaps(start, end, b[0], b[1]))) {
-                out.add(Schedule.formatTime(Schedule.fromMinutes(start)));
+                free.add(time);
+            } else {
+                taken.add(time);
             }
         }
-        return out;
+        return new DaySlots(free, taken);
+    }
+
+    /** Horários de início livres (HH:mm). {@code busy} deve conter só confirmados da profissional. */
+    public static List<String> availableSlots(int durationMin, LocalDate date, List<Busy> busy, Clock clock) {
+        return daySlots(durationMin, date, busy, clock).free();
     }
 
     public static boolean isSlotAvailable(int durationMin, LocalDate date, LocalTime time, List<Busy> busy,
