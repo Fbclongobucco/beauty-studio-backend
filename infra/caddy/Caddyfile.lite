@@ -1,0 +1,37 @@
+# Perfil enxuto (compose.lite.yaml, servidor de 1 GB): o Caddy faz o papel do gateway.
+# HTTPS automático para {$API_DOMAIN}; /api -> booking-service; /media -> fotos no MinIO (só leitura).
+{$API_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Fotos de até 5 MB; folga para o multipart
+	request_body {
+		max_size 8MB
+	}
+
+	# Fotos públicas dos serviços: /media/service-photos/... -> MinIO /service-photos/...
+	handle_path /media/* {
+		@write not method GET HEAD
+		respond @write 405
+		reverse_proxy minio:9000
+	}
+
+	# A cliente e o painel; o X-Forwarded-For com o IP dela vai para o limite de tentativas de login
+	handle /api/* {
+		reverse_proxy booking-service:8080
+	}
+
+	handle {
+		respond 404
+	}
+
+	# Booking fora do ar: mesmo erro padronizado que o gateway devolve no perfil completo
+	handle_errors 502 503 504 {
+		header Content-Type "application/json; charset=utf-8"
+		respond `{"code":"SERVICE_UNAVAILABLE","message":"Serviço temporariamente indisponível. Tente de novo em instantes."}` 503
+	}
+}

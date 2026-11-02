@@ -26,10 +26,17 @@ public class SecurityConfig {
             "{\"code\":\"UNAUTHORIZED\",\"message\":\"Faça login para continuar.\"}";
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, AuthUseCase auth) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, AuthUseCase auth, CorsSettings corsSettings) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.disable())
+                // Perfil completo: o gateway faz o CORS. Standalone: o próprio booking (CorsSettings)
+                .cors(cors -> {
+                    if (corsSettings.enabled()) {
+                        cors.configurationSource(corsSettings.source());
+                    } else {
+                        cors.disable();
+                    }
+                })
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable())

@@ -1,0 +1,124 @@
+# Perfil ENXUTO para servidor de 1 GB de RAM. Uso: ./stack.sh lite up -d
+# So o que o site usa: booking-service (sozinho, perfil Spring prod+standalone), Postgres, MinIO e Caddy (HTTPS).
+# Fora: gateway, Eureka, RabbitMQ, notification-service e Evolution (WhatsApp suspenso). Os eventos de
+# notificacao continuam gravados na outbox do banco e saem quando o perfil completo voltar.
+# Consumo medido nesta maquina de desenvolvimento (02/11/2026), apos 600 requisicoes: booking 364 MiB, Caddy 37 MiB,
+# Postgres 43 MiB, MinIO 31 MiB (total ~475 MiB). Trocar o GC (SerialGC) ou reduzir o heap nao mudou o consumo:
+# ele vem da parte da JVM fora do heap. Medir de novo no servidor real.
+# Front: na Vercel (ver DEPLOY.md). Este arquivo e independente do compose.yaml.
+name: beauty-lite
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '5'
+
+services:
+  postgres:
+    <<: *logging
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.lite}
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:?defina BOOKING_DB_PASSWORD no .env.lite}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Por TCP: no primeiro init o servidor temporario so escuta no socket Unix e reinicia em seguida
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d booking']
+      interval: 5s
+      retries: 30
+    mem_limit: 192m
+    restart: unless-stopped
+
+  # minio/minio foi arquivado e saiu do Docker Hub; imagem da Chainguard fixada por digest
+  minio:
+    <<: *logging
+    image: chainguard/minio@sha256:0a01100085e30fb08d2f39e39c9f5c9d83a95707f220b007d813b690cd41622d
+    command: ['server', '/data']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-beauty}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env.lite}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /minio/health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && read -r status <&3 && [[ $$status == *" 200 "* ]]']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    mem_limit: 160m
+    restart: unless-stopped
+
+  booking-service:
+    <<: *logging
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: booking-service
+    image: beauty-studio/booking-service:${IMAGE_TAG:-lite}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,standalone
+      APP_VIRTUAL_THREADS: 'true'
+      # Heap menor que no perfil completo: sobra memoria para o restante da maquina
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=60}
+      DB_URL: jdbc:postgresql://postgres:5432/booking
+      DB_USERNAME: booking
+      DB_PASSWORD: ${BOOKING_DB_PASSWORD}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-beauty}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?defina APP_JWT_SECRET no .env.lite (32+ caracteres)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-master}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env.lite}
+      ADMIN_USERS: ${ADMIN_USERS:-}
+      APP_COOKIE_SECURE: 'true'
+      APP_COOKIE_SAME_SITE: ${APP_COOKIE_SAME_SITE:-Lax}
+      APP_COOKIE_DOMAIN: ${APP_COOKIE_DOMAIN:-}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:?defina APP_CORS_ALLOWED_ORIGINS no .env.lite}
+      APP_PUBLIC_FRONT_URL: ${APP_PUBLIC_FRONT_URL:?defina APP_PUBLIC_FRONT_URL no .env.lite}
+      APP_PUBLIC_MEDIA_URL: ${APP_PUBLIC_MEDIA_URL:?defina APP_PUBLIC_MEDIA_URL no .env.lite}
+      # So o Caddy na frente do booking
+      LOGIN_TRUSTED_PROXY_HOPS: '1'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/actuator/health | grep -q UP']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  caddy:
+    <<: *logging
+    image: caddy:2.11.7-alpine
+    depends_on:
+      booking-service:
+        condition: service_healthy
+    environment:
+      API_DOMAIN: '${API_DOMAIN:?defina API_DOMAIN no .env.lite, por exemplo api.salao.com.br}'
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./infra/caddy/Caddyfile.lite:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 96m
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
+  caddy-data:
+  caddy-config:

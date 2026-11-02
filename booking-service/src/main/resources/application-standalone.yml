@@ -1,0 +1,23 @@
+# Perfil standalone (servidor de 1 GB, compose.lite.yaml): o booking-service atende sozinho, atrás do Caddy.
+# Sem Eureka, sem gateway e sem RabbitMQ. Os eventos de notificação continuam gravados na outbox e são
+# publicados quando o relay for religado (perfil completo).
+spring:
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+beauty:
+  outbox:
+    relay-enabled: false
+  # CORS (no perfil completo é o gateway que faz): origens do front, com credenciais
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
+
+management:
+  health:
+    rabbit:
+      enabled: false

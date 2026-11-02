@@ -4,8 +4,7 @@
 set -euo pipefail
 
 : "${BOOKING_DB_PASSWORD:?defina BOOKING_DB_PASSWORD}"
-: "${NOTIFICATION_DB_PASSWORD:?defina NOTIFICATION_DB_PASSWORD}"
-: "${EVOLUTION_DB_PASSWORD:?defina EVOLUTION_DB_PASSWORD}"
+# notification e evolution são opcionais: o perfil enxuto (compose.lite.yaml) só usa o banco booking
 
 create_db() {
   local name="$1" password="$2"
@@ -20,8 +19,8 @@ SQL
 }
 
 create_db booking "$BOOKING_DB_PASSWORD"
-create_db notification "$NOTIFICATION_DB_PASSWORD"
-create_db evolution "$EVOLUTION_DB_PASSWORD"
+if [[ -n "${NOTIFICATION_DB_PASSWORD:-}" ]]; then create_db notification "$NOTIFICATION_DB_PASSWORD"; fi
+if [[ -n "${EVOLUTION_DB_PASSWORD:-}" ]]; then create_db evolution "$EVOLUTION_DB_PASSWORD"; fi
 
 # A extensao btree_gist (exclusion constraint de agendamentos) exige superusuario para criar
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname booking -c 'CREATE EXTENSION IF NOT EXISTS btree_gist'

@@ -101,7 +101,9 @@ curl http://localhost:8080/api/services
   - Postgres: `localhost:5432`
 - Senha do master: `ADMIN_PASSWORD` em `.env.local`.
 
-**Prod (servidor):** passo a passo completo, com Vercel, DNS e HTTPS, em [DEPLOY.md](DEPLOY.md).
+**Servidor de 1 GB (lite):** `./stack.sh lite up -d` sobe só o booking-service (perfil Spring `prod,standalone`, sem Eureka, gateway e RabbitMQ), o Postgres, o MinIO e o Caddy, com cerca de 475 MiB medidos. O Caddy faz o HTTPS, encaminha `/api` e serve as fotos em `/media` (`infra/caddy/Caddyfile.lite`). Arquivos: `compose.lite.yaml` e `.env.lite`.
+
+**Prod (servidor):** passo a passo completo dos dois perfis, com Vercel, DNS e HTTPS, em [DEPLOY.md](DEPLOY.md).
 
 
 ```bash
@@ -287,9 +289,11 @@ infra/postgres/init/    cria os bancos e usuários na primeira subida
 compose.yaml            base comum (só o gateway publica porta)
 compose.local.yaml      perfil local: portas de gestão, perfil Spring local, sandbox do WhatsApp (perfil whatsapp-sandbox)
 compose.prod.yaml       perfil prod: Caddy (HTTPS), variáveis obrigatórias, rotação de log, perfil Spring prod
-infra/caddy/Caddyfile   proxy HTTPS da API em produção
+infra/caddy/Caddyfile   proxy HTTPS da API em produção (perfil completo)
+infra/caddy/Caddyfile.lite  HTTPS, /api e /media no perfil enxuto
+compose.lite.yaml       perfil enxuto para servidor de 1 GB (independente do compose.yaml)
 DEPLOY.md               roteiro de subida no servidor (VPS + Vercel)
-stack.sh                atalho: ./stack.sh local|prod <comando do compose>
+stack.sh                atalho: ./stack.sh local|prod|lite <comando do compose>
 whatsapp.sh             modos de envio do WhatsApp no perfil local (log, sandbox, real) e conexão do número
 infra/whatsapp-sandbox  sandbox que imita o envio da Evolution API
 .env.*.example          variáveis de cada perfil
