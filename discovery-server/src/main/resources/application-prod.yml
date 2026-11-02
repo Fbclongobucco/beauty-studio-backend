@@ -1,0 +1,21 @@
+# Perfil prod: sem detalhes internos nas respostas de saude e de erro.
+management:
+  endpoint:
+    health:
+      show-details: never
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+logging:
+  level:
+    root: INFO
+    com.longobuccodev.beautystudio: INFO
+
+# Painel do Eureka desligado em producao
+eureka:
+  dashboard:
+    enabled: false

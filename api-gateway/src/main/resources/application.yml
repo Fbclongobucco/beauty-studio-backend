@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      enabled: ${APP_VIRTUAL_THREADS:true}
+  servlet:
+    multipart:
+      # O gateway so repassa o corpo; o limite de 5 MB da foto e validado no booking-service
+      enabled: false
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # O gateway acrescenta o IP de quem conectou nele ao X-Forwarded-For (o booking usa no limite de login)
+          trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:.*}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+beauty:
+  gateway:
+    cors-allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    media-uri: ${MINIO_URL:http://localhost:9000}
+    timeout: ${GATEWAY_TIMEOUT:15s}
+    open-state-wait: ${GATEWAY_OPEN_STATE_WAIT:20s}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

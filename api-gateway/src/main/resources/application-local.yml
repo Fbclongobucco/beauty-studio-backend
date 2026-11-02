@@ -1,0 +1,9 @@
+# Perfil local: desenvolvimento. Detalhes de saude visiveis e log do sistema em DEBUG.
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.longobuccodev.beautystudio: DEBUG

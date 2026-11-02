@@ -1,0 +1,225 @@
+# Backend do Longo Bucco Beauty Studio: microsservicos orientados a eventos.
+# Base comum aos dois perfis. Suba sempre por um deles (as imagens sao construidas na propria maquina):
+#   ./stack.sh local up -d --build   -> compose.yaml + compose.local.yaml, .env.local, perfil Spring "local"
+#   ./stack.sh prod  up -d --build   -> compose.yaml + compose.prod.yaml,  .env.prod,  perfil Spring "prod"
+# So o gateway publica porta para fora. Portas de gestao ficam nos arquivos de cada perfil, em 127.0.0.1.
+# mem_limit: valores iniciais, a medir na primeira subida real (nao sao numeros validados).
+
+x-java-service: &java-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &java-env
+    SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+    APP_VIRTUAL_THREADS: ${APP_VIRTUAL_THREADS:-true}
+    EUREKA_URL: http://discovery-server:8761/eureka/
+    JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75}
+  healthcheck:
+    test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/actuator/health | grep -q UP']
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 30s
+
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:?defina BOOKING_DB_PASSWORD no .env}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?defina NOTIFICATION_DB_PASSWORD no .env}
+      EVOLUTION_DB_PASSWORD: ${EVOLUTION_DB_PASSWORD:?defina EVOLUTION_DB_PASSWORD no .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Por TCP: no primeiro init o servidor temporario so escuta no socket Unix e reinicia em seguida
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d booking']
+      interval: 5s
+      retries: 30
+    mem_limit: 256m
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.3.7-management-alpine
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-beauty}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    mem_limit: 384m
+    restart: unless-stopped
+
+  # minio/minio foi arquivado e saiu do Docker Hub; imagem da Chainguard fixada por digest (tag latest em 2026-11-02)
+  minio:
+    image: chainguard/minio@sha256:0a01100085e30fb08d2f39e39c9f5c9d83a95707f220b007d813b690cd41622d
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-beauty}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env}
+    volumes:
+      - minio-data:/data
+    # A imagem nao tem curl nem grep: checagem HTTP com o proprio bash
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /minio/health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && read -r status <&3 && [[ $$status == *" 200 "* ]]']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    mem_limit: 256m
+    restart: unless-stopped
+
+  # Variaveis conferidas no .env.example oficial da v2.3.7. Cache local, sem Redis.
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8081}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?defina EVOLUTION_API_KEY no .env}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: 'true'
+      DEL_INSTANCE: 'false'
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_PASSWORD}@postgres:5432/evolution?schema=evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: beauty_studio
+      CACHE_REDIS_ENABLED: 'false'
+      CACHE_LOCAL_ENABLED: 'true'
+      TELEMETRY_ENABLED: 'false'
+      LANGUAGE: pt-BR
+      LOG_LEVEL: ERROR,WARN,INFO
+      CONFIG_SESSION_PHONE_CLIENT: Longo Bucco Beauty Studio
+    volumes:
+      - evolution-instances:/evolution/instances
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8080/ | grep -q "is working"']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  discovery-server:
+    <<: *java-service
+    build:
+      context: .
+      args:
+        MODULE: discovery-server
+    image: beauty-studio/discovery-server:${IMAGE_TAG:-local}
+    environment:
+      <<: *java-env
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8761/actuator/health | grep -q UP']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 384m
+
+  api-gateway:
+    <<: *java-service
+    build:
+      context: .
+      args:
+        MODULE: api-gateway
+    image: beauty-studio/api-gateway:${IMAGE_TAG:-local}
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      <<: *java-env
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      MINIO_URL: http://minio:9000
+      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-.*}
+    ports:
+      - '${GATEWAY_PORT:-8080}:8080'
+    mem_limit: 384m
+
+  booking-service:
+    <<: *java-service
+    build:
+      context: .
+      args:
+        MODULE: booking-service
+    image: beauty-studio/booking-service:${IMAGE_TAG:-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      <<: *java-env
+      DB_URL: jdbc:postgresql://postgres:5432/booking
+      DB_USERNAME: booking
+      DB_PASSWORD: ${BOOKING_DB_PASSWORD}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-beauty}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-beauty}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?defina APP_JWT_SECRET no .env (32+ caracteres)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-master}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_USERS: ${ADMIN_USERS:-}
+      APP_COOKIE_SECURE: ${APP_COOKIE_SECURE:-false}
+      APP_COOKIE_SAME_SITE: ${APP_COOKIE_SAME_SITE:-Lax}
+      APP_PUBLIC_FRONT_URL: ${APP_PUBLIC_FRONT_URL:-http://localhost:3000}
+      APP_PUBLIC_MEDIA_URL: ${APP_PUBLIC_MEDIA_URL:-http://localhost:8080}
+      LOGIN_TRUSTED_PROXY_HOPS: ${LOGIN_TRUSTED_PROXY_HOPS:-1}
+    mem_limit: 512m
+
+  notification-service:
+    <<: *java-service
+    build:
+      context: .
+      args:
+        MODULE: notification-service
+    image: beauty-studio/notification-service:${IMAGE_TAG:-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      evolution-api:
+        condition: service_healthy
+    environment:
+      <<: *java-env
+      DB_URL: jdbc:postgresql://postgres:5432/notification
+      DB_USERNAME: notification
+      DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-beauty}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      NOTIFICATION_SEND_ENABLED: ${NOTIFICATION_SEND_ENABLED:-false}
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-beauty-studio}
+      SALON_WHATSAPP: ${SALON_WHATSAPP:-}
+      APP_PUBLIC_FRONT_URL: ${APP_PUBLIC_FRONT_URL:-http://localhost:3000}
+    mem_limit: 384m
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  minio-data:
+  evolution-instances:

@@ -1,0 +1,31 @@
+# Perfil LOCAL (desenvolvimento). Uso: ./stack.sh local up -d --build
+# Equivale a: docker compose --env-file .env.local -f compose.yaml -f compose.local.yaml ...
+# Portas de gestao so em 127.0.0.1. Mensagens de WhatsApp so no log, salvo NOTIFICATION_SEND_ENABLED=true.
+name: beauty-local
+
+x-local-java: &local-java
+  SPRING_PROFILES_ACTIVE: local
+
+services:
+  postgres:
+    ports:
+      - '127.0.0.1:5432:5432'
+  rabbitmq:
+    ports:
+      - '127.0.0.1:15672:15672'   # painel de gestao do RabbitMQ
+  minio:
+    ports:
+      - '127.0.0.1:9001:9001'     # console do MinIO
+  evolution-api:
+    ports:
+      - '127.0.0.1:8081:8080'     # API e gerenciador (/manager) da Evolution: conexao do numero por QR Code
+  discovery-server:
+    environment: *local-java
+    ports:
+      - '127.0.0.1:8761:8761'     # painel do Eureka
+  api-gateway:
+    environment: *local-java
+  booking-service:
+    environment: *local-java
+  notification-service:
+    environment: *local-java

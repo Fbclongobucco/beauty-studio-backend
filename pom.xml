@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      Versoes conferidas em 2026-11-02 (tarefa 1.1):
+      - Spring Boot 4.1.2: ultimo patch da linha 4.1 (mesma linha do App-adm-obras, 4.1.1) no Maven Central.
+      - Spring Cloud 2025.1.4: start.spring.io/actuator/info (bom-ranges) informa
+        "Spring Boot >=4.0.0 and <4.2.0-M1". O train 2026.0 so atende Boot 4.2 e ainda esta em RC.
+      - Imagens Docker (compose.yaml), sem tag "latest":
+        postgres:18.6, rabbitmq:4.3.7-management-alpine, evoapicloud/evolution-api:v2.3.7 (ultima estavel;
+        2.4.0 so tem RC), eclipse-temurin:25.0.5_8-jdk-noble / 25.0.5_8-jre-noble,
+        chainguard/minio fixado por digest (minio/minio foi arquivado e saiu do Docker Hub).
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.2</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.longobuccodev.beautystudio</groupId>
+    <artifactId>beauty-studio-backend</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>beauty-studio-backend</name>
+    <description>Backend em microsservicos do Longo Bucco Beauty Studio</description>
+
+    <modules>
+        <module>messaging-contracts</module>
+        <module>discovery-server</module>
+        <module>api-gateway</module>
+        <module>booking-service</module>
+        <module>notification-service</module>
+    </modules>
+
+    <properties>
+        <java.version>25</java.version>
+        <spring-cloud.version>2025.1.4</spring-cloud.version>
+        <archunit.version>1.5.1</archunit.version>
+        <awssdk.version>2.57.8</awssdk.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.longobuccodev.beautystudio</groupId>
+                <artifactId>messaging-contracts</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5</artifactId>
+                <version>${archunit.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <!-- Testes de integracao (*IT, com Testcontainers) rodam junto: exigem Docker -->
+                        <includes>
+                            <include>**/*Test.java</include>
+                            <include>**/*Tests.java</include>
+                            <include>**/*IT.java</include>
+                        </includes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

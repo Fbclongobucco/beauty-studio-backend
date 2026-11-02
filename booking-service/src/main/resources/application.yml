@@ -1,0 +1,103 @@
+spring:
+  application:
+    name: booking-service
+  threads:
+    virtual:
+      # Virtual threads no Tomcat, no @Scheduled e no consumidor AMQP. Desligavel para comparacao.
+      enabled: ${APP_VIRTUAL_THREADS:true}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/booking}
+    username: ${DB_USERNAME:booking}
+    password: ${DB_PASSWORD:booking}
+    hikari:
+      # Com virtual threads, o pool e o limite efetivo de concorrencia no banco
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Esquema so pelo Flyway
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  servlet:
+    multipart:
+      # Leitura do multipart so depois da checagem de sessao e escopo (servico alheio: 404)
+      resolve-lazily: true
+      max-file-size: ${beauty.storage.max-photo-size}
+      max-request-size: 6MB
+  autoconfigure:
+    # Sem usuario padrao gerado: a autenticacao e pelo cookie de sessao
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: native
+
+beauty:
+  security:
+    jwt-secret: ${APP_JWT_SECRET:}
+    cookie-secure: ${APP_COOKIE_SECURE:false}
+    cookie-same-site: ${APP_COOKIE_SAME_SITE:Lax}
+  admin:
+    username: ${ADMIN_USERNAME:master}
+    password: ${ADMIN_PASSWORD:}
+    users: ${ADMIN_USERS:}
+  public-urls:
+    front-url: ${APP_PUBLIC_FRONT_URL:http://localhost:3000}
+    media-url: ${APP_PUBLIC_MEDIA_URL:http://localhost:8080}
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:beauty}
+    secret-key: ${MINIO_SECRET_KEY:beauty-secret}
+    bucket: service-photos
+    max-photo-size: 5MB
+    timeout: 10s
+  login:
+    max-failures: ${LOGIN_MAX_FAILURES:10}
+    window: ${LOGIN_WINDOW:15m}
+    trusted-proxy-hops: ${LOGIN_TRUSTED_PROXY_HOPS:1}
+  outbox:
+    relay-enabled: true
+    relay-interval: 1s
+    batch-size: 50
+    retention: 7d
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    # Saude inclui banco e broker
+    rabbit:
+      enabled: true
+    db:
+      enabled: true
+
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: error

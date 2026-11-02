@@ -1,0 +1,21 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IDEs ###
+.idea
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.factorypath
+.project
+.settings
+
+# Ambiente: segredos ficam fora do repositório
+.env
+.env.*
+!.env.*.example
